@@ -1,12 +1,39 @@
 import AppError from "../../handlers/errorHandler.js";
 import { Prisma } from "@prisma/client";
-import console from "console";
+import { GraphQLYogaError } from "@graphql-yoga/node";
+import { hashPassword, verifyPassword } from "../utils/passwordhashing.js";
+import { generateAuthToken } from "../utils/TokenAuth.js";
 const Mutation = {
-  async createUser(parent, args, { prisma }, info) {
-    const user = await prisma.user.create({
-      data: args.data,
-    });
-    return user;
+  async signUp(parent, args, { prisma }, info) {
+    try {
+      const password = await hashPassword(args.data.password);
+      const user = await prisma.user.create({
+        data: { ...args.data, email: args.data.email.toLowerCase(), password },
+      });
+      if (user.id) {
+        const token = await generateAuthToken(user.id);
+        return { user, token };
+      }
+    } catch (error) {
+      console.log("==>", error.message);
+    }
+  },
+  async login(parent, args, { prisma }, info) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: args.data.email.toLowerCase() },
+      });
+      if (!user) {
+        throw new Error("Incorrent credentials");
+      }
+      const isMatched = await verifyPassword(args.data.password, user.password);
+      if (!isMatched) {
+        throw new Error("Incorrent credentials");
+      }
+      return { user, token: await generateAuthToken(user.id) };
+    } catch (error) {
+      console.log("==>", error.message);
+    }
   },
   async deleteUser(parent, args, { prisma }, info) {
     console.log("agra", args);

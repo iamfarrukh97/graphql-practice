@@ -15,7 +15,8 @@ const Query = {
       console.log("error=>", error);
     }
   },
-  async posts(parent, args, { prisma }, info) {
+  async posts(parent, args, { currentUser, prisma }, info) {
+    console.log({ currentUser });
     const where = args.query
       ? {
           OR: [

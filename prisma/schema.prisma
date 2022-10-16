@@ -11,12 +11,16 @@ datasource db {
 }
 
 model User {
-  id       String    @id @default(uuid())
-  email    String    @unique
-  name     String
-  age      Int?
-  posts    Post[]
-  comments Comment[]
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  name      String
+  age       Int?
+  role      UserRole  @default(USER)
+  posts     Post[]
+  comments  Comment[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Post {
@@ -27,13 +31,23 @@ model Post {
   user      User      @relation(fields: [userId], references: [id])
   userId    String
   comments  Comment[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Comment {
-  id     String @id @default(uuid())
-  text   String
-  post   Post   @relation(fields: [postId], references: [id])
-  postId String
-  user   User   @relation(fields: [userId], references: [id])
-  userId String
+  id        String   @id @default(uuid())
+  text      String
+  post      Post     @relation(fields: [postId], references: [id])
+  postId    String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  ADMIN
+  AUTHOR
+  USER
 }
