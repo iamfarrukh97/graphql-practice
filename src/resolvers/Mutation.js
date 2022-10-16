@@ -1,4 +1,4 @@
-import AppError from "../../handlers/errorHandler.js";
+import AppError from "../handlers/errorHandler.js";
 import { Prisma } from "@prisma/client";
 import { GraphQLYogaError } from "@graphql-yoga/node";
 import { hashPassword, verifyPassword } from "../utils/passwordhashing.js";
@@ -98,18 +98,10 @@ const Mutation = {
       console.log("error =>", error);
     }
   },
-  async createPost(parent, args, { prisma, pubsub }, info) {
+  async createPost(parent, args, { currentUser, prisma, pubsub }, info) {
     try {
-      const user = await prisma.user.findUnique({
-        where: {
-          id: args.data.userId,
-        },
-      });
-      if (!user) {
-        throw new Error("User not found");
-      }
       const post = await prisma.post.create({
-        data: args.data,
+        data: { ...args.data, userId: currentUser.id },
       });
       if (args.data.published) {
         pubsub.publish("post", {
@@ -146,9 +138,15 @@ const Mutation = {
 
   //   return post;
   // },
-  async updatePost(parent, args, { prisma, db, pubsub }, info) {
+  async updatePost(parent, args, { currentUser, prisma, db }, info) {
     const { id, data } = args;
-
+    const isPostAuthor = await prisma.post.find({
+      where: id,
+      userId: currentUser.id,
+    });
+    if (!isPostAuthor) {
+      throw new Error("You are not author of this post");
+    }
     const fieldsToUpdate = {};
     if (typeof data.title === "string") {
       fieldsToUpdate.title = data.title;

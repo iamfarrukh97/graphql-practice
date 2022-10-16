@@ -1,8 +1,7 @@
-import { c } from "tar";
-import AppError from "../../handlers/errorHandler.js";
+import AppError from "../handlers/errorHandler.js";
 
 const Query = {
-  async users(parent, args, { prisma }, info) {
+  async users(parent, args, { currentUser, prisma }, info) {
     const where = args.query
       ? {
           OR: [{ name: { contains: args.query, mode: "insensitive" } }],
@@ -15,8 +14,7 @@ const Query = {
       console.log("error=>", error);
     }
   },
-  async posts(parent, args, { currentUser, prisma }, info) {
-    console.log({ currentUser });
+  async posts(parent, args, { prisma }, info) {
     const where = args.query
       ? {
           OR: [
@@ -37,12 +35,8 @@ const Query = {
       console.log("error =>", error);
     }
   },
-  me() {
-    return {
-      id: "123098",
-      name: "Mike",
-      email: "mike@example.com",
-    };
+  async me(parent, args, { currentUser, prisma }, info) {
+    return currentUser;
   },
   post() {
     // const user

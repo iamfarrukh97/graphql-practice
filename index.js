@@ -1,23 +1,26 @@
 import { createServer, createPubSub } from "@graphql-yoga/node";
-import express from "express";
 import { PrismaClient } from "@prisma/client";
-import errorController from "./handlers/errorController.js";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { applyMiddleware } from "graphql-middleware";
+import express from "express";
+import errorController from "./src/handlers/errorController.js";
 import Query from "./src/resolvers/Query.js";
 import Mutation from "./src/resolvers/Mutation.js";
 import Subscription from "./src/resolvers/Subscription.js";
 import User from "./src/resolvers/User.js";
 import Post from "./src/resolvers/Post.js";
 import Comment from "./src/resolvers/Comment.js";
-import typeDefs from "./src/schema.js";
+import typeDefinitions from "./src/schema.js";
 import { verifyAuthToken } from "./src/utils/TokenAuth.js";
 import AutoCreateAdmin from "./src/utils/AutoCreateAdmin.js";
+import permissions from "./src/utils/Permissions.js";
 const pubsub = createPubSub();
 const prisma = new PrismaClient();
 const app = express();
-const graphQLServer = createServer({
-  schema: {
-    typeDefs: typeDefs,
-    resolvers: {
+
+const schema = makeExecutableSchema({
+  resolvers: [
+    {
       Query,
       Mutation,
       Subscription,
@@ -25,7 +28,15 @@ const graphQLServer = createServer({
       Post,
       Comment,
     },
-  },
+  ],
+  typeDefs: typeDefinitions,
+});
+const schemaWithPermissions = applyMiddleware(
+  schema,
+  permissions.generate(schema)
+);
+const graphQLServer = createServer({
+  schema: schemaWithPermissions,
   async context(request) {
     return {
       prisma,

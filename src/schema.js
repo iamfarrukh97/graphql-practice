@@ -54,7 +54,6 @@ const typeDefinitions = gql`
     title: String!
     body: String!
     published: Boolean!
-    userId: ID!
   }
 
   input UpdatePostInput {
@@ -128,5 +127,4 @@ const typeDefinitions = gql`
     data: Comment!
   }
 `;
-
 export { typeDefinitions as default };
