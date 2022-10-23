@@ -3,7 +3,6 @@ import { PrismaClient } from "@prisma/client";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { applyMiddleware } from "graphql-middleware";
 import express from "express";
-import errorController from "./src/handlers/errorController.js";
 import Query from "./src/resolvers/Query.js";
 import Mutation from "./src/resolvers/Mutation.js";
 import Subscription from "./src/resolvers/Subscription.js";

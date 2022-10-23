@@ -1,5 +1,5 @@
 import AppError from "../handlers/errorHandler.js";
-import { hashPassword, verifyPassword } from "../utils/passwordhashing.js";
+import { hashPassword, verifyPassword } from "../utils/PasswordHashing.js";
 import { generateAuthToken } from "../utils/TokenAuth.js";
 const Mutation = {
   async signUp(parent, args, { prisma }, info) {
