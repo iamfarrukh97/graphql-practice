@@ -145,7 +145,7 @@ const Mutation = {
       throw new AppError(error.message);
     }
   },
-  async updatePost(parent, args, { currentUser, prisma, db }, info) {
+  async updatePost(parent, args, { currentUser, prisma, pubsub }, info) {
     try {
       const { id, data } = args;
       const isPostAuthor = await prisma.post.findFirst({
@@ -231,10 +231,18 @@ const Mutation = {
 
     return comment;
   },
-  async deleteComment(parent, args, { prisma, db, pubsub }, info) {
+  async deleteComment(parent, args, { prisma, pubsub, currentUser }, info) {
+    const { id } = args;
+
+    const isCommentAuthor = await prisma.comment.findFirst({
+      where: { id, userId: currentUser.id },
+    });
+    if (!isCommentAuthor) {
+      throw new AppError("You are not author of this comment");
+    }
     const deletedComment = await prisma.comment.delete({
       where: {
-        id: args.id,
+        id,
       },
     });
     if (!deletedComment) {
