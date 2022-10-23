@@ -1,4 +1,4 @@
-import { hashPassword } from "./passwordhashing.js";
+import { hashPassword } from "./PasswordHashing.js";
 
 const createAdmin = async (prisma) => {
   const adminExists = await prisma.user.findUnique({
