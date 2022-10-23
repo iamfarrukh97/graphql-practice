@@ -8,8 +8,6 @@ const User = {
     return posts;
   },
   async comments(parent, args, { prisma }, info) {
-    console.log("user resolver");
-
     const comments = await prisma.comment.findMany({
       where: {
         userId: parent.id,

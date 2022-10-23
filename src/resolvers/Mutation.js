@@ -1,50 +1,76 @@
-import AppError from "../../handlers/errorHandler.js";
-import { Prisma } from "@prisma/client";
-import console from "console";
+import AppError from "../handlers/errorHandler.js";
+import { hashPassword, verifyPassword } from "../utils/passwordhashing.js";
+import { generateAuthToken } from "../utils/TokenAuth.js";
 const Mutation = {
-  async createUser(parent, args, { prisma }, info) {
-    const user = await prisma.user.create({
-      data: args.data,
-    });
-    return user;
-  },
-  async deleteUser(parent, args, { prisma }, info) {
-    console.log("agra", args);
+  async signUp(parent, args, { prisma }, info) {
     try {
-      const deletedUser = await prisma.user.delete({
-        where: {
-          id: args.id,
-        },
+      const password = await hashPassword(args.data.password);
+      const user = await prisma.user.create({
+        data: { ...args.data, email: args.data.email.toLowerCase(), password },
       });
-      console.log({ deletedUser });
-
-      const deletedPosts = await prisma.post.deleteMany({
-        where: {
-          userId: args.id,
-        },
-      });
-      console.log({ deletedPosts });
-      // db.posts = db.posts.filter((post) => {
-      //   const match = post.author === args.id;
-
-      //   if (match) {
-      //     db.comments = db.comments.filter((comment) => comment.post !== post.id);
-      //   }
-
-      //   return !match;
-      // });
-      // db.comments = db.comments.filter((comment) => comment.author !== args.id);
-
-      return true;
+      if (user.id) {
+        const token = await generateAuthToken(user.id);
+        return { user, token };
+      }
     } catch (error) {
-      console.log("error =>", error);
+      throw new AppError(error.message);
     }
   },
-  async updateUser(parent, args, { prisma }, info) {
+  async login(parent, args, { prisma }, info) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: args.data.email.toLowerCase() },
+      });
+      if (!user) {
+        throw new Error("Incorrent credentials");
+      }
+      const isMatched = await verifyPassword(args.data.password, user.password);
+      if (!isMatched) {
+        throw new Error("Incorrent credentials");
+      }
+      return { user, token: await generateAuthToken(user.id) };
+    } catch (error) {
+      throw new AppError(error.message);
+    }
+  },
+  async deleteUser(parent, args, { currentUser, prisma }, info) {
+    try {
+      const { id } = args;
+      let userIdToDelete = currentUser.id;
+      if (currentUser.role === "ADMIN") {
+        userIdToDelete = id;
+      }
+      if (!userIdToDelete) {
+        throw new AppError("Invalid user id");
+      }
+      const deletedUser = await prisma.user.delete({
+        where: {
+          id: userIdToDelete,
+        },
+      });
+      if (!deletedUser) {
+        throw new AppError("Unable to delete user");
+      }
+      return deletedUser;
+    } catch (error) {
+      throw new AppError(error.message);
+    }
+  },
+  async updateUser(parent, args, { prisma, currentUser }, info) {
     try {
       const { id, data } = args;
-
       const fieldsToUpdate = {};
+      let userIdToUpdate = currentUser.id;
+      if (currentUser.role === "ADMIN") {
+        userIdToUpdate = id;
+        if (typeof data.role === "string" && typeof id === "string") {
+          fieldsToUpdate.role = data.role;
+        }
+      }
+      if (!userIdToUpdate) {
+        throw new AppError("Invalid user id");
+      }
+
       if (typeof data.email === "string") {
         fieldsToUpdate.email = data.email;
       }
@@ -57,32 +83,24 @@ const Mutation = {
       }
       const user = await prisma.user.update({
         where: {
-          id,
+          id: userIdToUpdate,
         },
         data: fieldsToUpdate,
       });
 
       if (!user) {
-        throw new Error("User not found");
+        throw new AppError("User not found");
       }
 
       return user;
     } catch (error) {
-      console.log("error =>", error);
+      throw new AppError(error.message);
     }
   },
-  async createPost(parent, args, { prisma, pubsub }, info) {
+  async createPost(parent, args, { currentUser, prisma, pubsub }, info) {
     try {
-      const user = await prisma.user.findUnique({
-        where: {
-          id: args.data.userId,
-        },
-      });
-      if (!user) {
-        throw new Error("User not found");
-      }
       const post = await prisma.post.create({
-        data: args.data,
+        data: { ...args.data, userId: currentUser.id },
       });
       if (args.data.published) {
         pubsub.publish("post", {
@@ -94,34 +112,48 @@ const Mutation = {
       }
       return post;
     } catch (error) {
-      console.log("error=>", error);
+      throw new AppError(error.message);
     }
   },
-  // deletePost(parent, args, { db, pubsub }, info) {
-  //   const postIndex = db.posts.findIndex((post) => post.id === args.id);
+  async deletePost(parent, args, { currentUser, prisma, pubsub }, info) {
+    try {
+      const { id } = args;
+      const isPostAuthor = await prisma.post.findFirst({
+        where: { id, userId: currentUser.id },
+      });
+      if (!isPostAuthor) {
+        throw new AppError("You are not author of this post");
+      }
 
-  //   if (postIndex === -1) {
-  //     throw new Error("Post not found");
-  //   }
+      const post = await prisma.post.delete({
+        where: { id },
+      });
+      if (!post) {
+        throw new AppError("Post not found");
+      }
+      if (post.published) {
+        pubsub.publish("post", {
+          post: {
+            mutation: "DELETED",
+            data: post,
+          },
+        });
+      }
 
-  //   const [post] = db.posts.splice(postIndex, 1);
-
-  //   db.comments = db.comments.filter((comment) => comment.post !== args.id);
-
-  //   if (post.published) {
-  //     pubsub.publish("post", {
-  //       post: {
-  //         mutation: "DELETED",
-  //         data: post,
-  //       },
-  //     });
-  //   }
-
-  //   return post;
-  // },
-  async updatePost(parent, args, { prisma, db, pubsub }, info) {
+      return post;
+    } catch (error) {
+      throw new AppError(error.message);
+    }
+  },
+  async updatePost(parent, args, { currentUser, prisma, db }, info) {
     const { id, data } = args;
-
+    const isPostAuthor = await prisma.post.findFirst({
+      where: { id, userId: currentUser.id },
+    });
+    if (!isPostAuthor) {
+      throw new AppError("You are not author of this post");
+    }
+    const originalPost = { ...isPostAuthor }; // isPostAuthor contains the post data
     const fieldsToUpdate = {};
     if (typeof data.title === "string") {
       fieldsToUpdate.title = data.title;
@@ -135,124 +167,112 @@ const Mutation = {
     }
     const post = await prisma.post.update({
       where: {
-        id,
+        id: id,
       },
       data: fieldsToUpdate,
     });
 
     if (!post) {
-      throw new Error("Post not found");
+      throw new AppError("Post not found");
     }
 
-    // if (typeof data.published === "boolean") {
-    //   fieldsToUpdate.published = data.published;
+    if (typeof data.published === "boolean") {
+      fieldsToUpdate.published = data.published;
 
-    //   if (originalPost.published && !post.published) {
-    //     pubsub.publish("post", {
-    //       post: {
-    //         mutation: "DELETED",
-    //         data: originalPost,
-    //       },
-    //     });
-    //   } else if (!originalPost.published && post.published) {
-    //     pubsub.publish("post", {
-    //       post: {
-    //         mutation: "CREATED",
-    //         data: post,
-    //       },
-    //     });
-    //   }
-    // } else if (post.published) {
-    //   pubsub.publish("post", {
-    //     post: {
-    //       mutation: "UPDATED",
-    //       data: post,
-    //     },
-    //   });
-    // }
+      if (fieldsToUpdate.published && !post.published) {
+        pubsub.publish("post", {
+          post: {
+            mutation: "DELETED",
+            data: originalPost,
+          },
+        });
+      } else if (!originalPost.published && post.published) {
+        pubsub.publish("post", {
+          post: {
+            mutation: "CREATED",
+            data: post,
+          },
+        });
+      }
+    } else if (post.published) {
+      pubsub.publish("post", {
+        post: {
+          mutation: "UPDATED",
+          data: post,
+        },
+      });
+    }
 
     return post;
   },
-  async createComment(parent, args, { prisma, db, pubsub }, info) {
-    try {
-      const userExists = await prisma.user.findUnique({
-        where: {
-          id: args.data.userId,
-        },
-      });
-      const postExists = await prisma.post.findFirst({
-        where: {
-          id: args.data.postId,
-          published: true,
-        },
-      });
-      if (!userExists || !postExists) {
-        throw new Error("Unable to find user and post");
-      }
-      const comment = await prisma.comment.create({
-        data: args.data,
-      });
-      pubsub.publish(`comment ${args.data.postId}`, {
-        comment: {
-          mutation: "CREATED",
-          data: comment,
-        },
-      });
-
-      return comment;
-    } catch (error) {
-      console.log("error =>", error);
+  async createComment(parent, args, { currentUser, prisma, pubsub }, info) {
+    const postExists = await prisma.post.findFirst({
+      where: {
+        id: args.data.postId,
+        published: true,
+      },
+    });
+    if (!postExists) {
+      throw new AppError("Unable to find user and post");
     }
+    const comment = await prisma.comment.create({
+      data: { ...args.data, userId: currentUser.id },
+    });
+    pubsub.publish(`comment ${args.data.postId}`, {
+      comment: {
+        mutation: "CREATED",
+        data: comment,
+      },
+    });
+
+    return comment;
   },
   async deleteComment(parent, args, { prisma, db, pubsub }, info) {
-    try {
-      const deletedComment = await prisma.comment.delete({
-        where: {
-          id: args.id,
-        },
-      });
-      if (!deletedComment) {
-        throw new Error("Comment not found");
-      }
-      // pubsub.publish(`comment ${deletedComment.post}`, {
-      //   comment: {
-      //     mutation: "DELETED",
-      //     data: deletedComment,
-      //   },
-      // });
-
-      return deletedComment;
-    } catch (error) {
-      console.log("error =>", error);
+    const deletedComment = await prisma.comment.delete({
+      where: {
+        id: args.id,
+      },
+    });
+    if (!deletedComment) {
+      throw new AppError("Comment not found");
     }
+    pubsub.publish(`comment ${deletedComment.post}`, {
+      comment: {
+        mutation: "DELETED",
+        data: deletedComment,
+      },
+    });
+    return deletedComment;
   },
-  async updateComment(parent, args, { prisma, db, pubsub }, info) {
-    try {
-      const { id, data } = args;
-      const fieldsToUpdate = {};
-      if (typeof data.text === "string") {
-        fieldsToUpdate.text = data.text;
-      }
-      const comment = await prisma.comment.update({
-        where: {
-          id,
-        },
-        data: fieldsToUpdate,
-      });
-      if (!comment) {
-        throw new Error("Comment not found");
-      }
-      pubsub.publish(`comment ${comment.postId}`, {
-        comment: {
-          mutation: "UPDATED",
-          data: comment,
-        },
-      });
-
-      return comment;
-    } catch (error) {
-      console.log("error =>", error);
+  async updateComment(parent, args, { prisma, currentUser, pubsub }, info) {
+    const { id, data } = args;
+    const isCommentAuthor = await prisma.comment.findFirst({
+      where: { id, userId: currentUser.id },
+    });
+    if (!isCommentAuthor) {
+      throw new AppError("You are not author of this comment");
     }
+    const fieldsToUpdate = {};
+    if (typeof data.text === "string") {
+      fieldsToUpdate.text = data.text;
+    }
+    const comment = await prisma.comment.update({
+      where: {
+        id,
+      },
+      data: fieldsToUpdate,
+    });
+    if (!comment) {
+      throw new AppError("Comment not found");
+    }
+    pubsub.publish(`comment ${comment.postId}`, {
+      comment: {
+        mutation: "UPDATED",
+        data: comment,
+      },
+    });
+
+    return comment;
   },
 };
 
