@@ -46,7 +46,14 @@ const graphQLServer = createServer({
 });
 
 app.use("/graphql", graphQLServer);
-app.listen(4000, async () => {
+const port = process.env.PORT || 3000;
+app.listen(port, async () => {
   AutoCreateAdmin(prisma);
-  console.log("Running a GraphQL API server at http://localhost:4000/graphql");
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `Running a GraphQL API server at http://localhost:${port}/graphql`
+    );
+  } else {
+    console.log(`Running a GraphQL API server on production`);
+  }
 });
