@@ -11,8 +11,8 @@ const typeDefinitions = gql`
   type Mutation {
     signUp(data: CreateUserInput!): AuthPayload!
     login(data: LoginUserInput!): AuthPayload!
-    deleteUser(id: ID!): User!
-    updateUser(id: ID!, data: UpdateUserInput!): User!
+    deleteUser(id: ID): User!
+    updateUser(id: ID, data: UpdateUserInput!): User!
     createPost(data: CreatePostInput!): Post!
     deletePost(id: ID!): Post!
     updatePost(id: ID!, data: UpdatePostInput!): Post!
@@ -48,6 +48,7 @@ const typeDefinitions = gql`
     name: String
     email: String
     age: Int
+    role: UserRole
   }
 
   input CreatePostInput {
@@ -64,7 +65,6 @@ const typeDefinitions = gql`
 
   input CreateCommentInput {
     text: String!
-    userId: ID!
     postId: ID!
   }
 

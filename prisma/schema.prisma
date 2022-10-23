@@ -28,7 +28,7 @@ model Post {
   title     String
   body      String
   published Boolean
-  user      User      @relation(fields: [userId], references: [id])
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   comments  Comment[]
   createdAt DateTime  @default(now())
@@ -38,9 +38,9 @@ model Post {
 model Comment {
   id        String   @id @default(uuid())
   text      String
-  post      Post     @relation(fields: [postId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   postId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

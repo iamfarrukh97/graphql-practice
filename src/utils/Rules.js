@@ -1,14 +1,23 @@
 import { rule } from "graphql-shield";
-
+import { GraphQLYogaError } from "@graphql-yoga/node";
 const isAdmin = rule()(async (parent, args, { currentUser }, info) => {
-  return currentUser?.role === "ADMIN";
+  if (currentUser?.role === "ADMIN") {
+    return true;
+  }
+  return new GraphQLYogaError("You are not authorized for this action!");
 });
 const isAuthor = rule()(async (parent, args, { currentUser }, info) => {
-  return currentUser?.role === "AUTHOR";
+  if (currentUser?.role === "AUTHOR") {
+    return true;
+  }
+  return new GraphQLYogaError("You are not authorized for this action!");
 });
 const isAuthenticated = rule()(async (parent, args, { currentUser }, info) => {
   const ROLES = ["ADMIN", "AUTHOR", "USER"];
-  return ROLES.includes(currentUser.role);
+  if (ROLES.includes(currentUser?.role)) {
+    return true;
+  }
+  return new GraphQLYogaError("You are not authorized for this action!");
 });
 
 export { isAdmin, isAuthor, isAuthenticated };
