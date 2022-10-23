@@ -5,7 +5,9 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "run": "nodemon --exec babel-node index.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "dev1": "nodemon --exec babel-node index.js",
     "prisma:migrate": "npx prisma migrate dev --name init",
     "prisma:generate": "npx prisma generate"
   },

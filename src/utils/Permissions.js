@@ -6,6 +6,7 @@ const permissions = shield(
     Query: {
       users: isAdmin,
       me: isAuthenticated,
+      myPosts: or(isAdmin, isAuthor),
     },
     Mutation: {
       updateUser: isAuthenticated,

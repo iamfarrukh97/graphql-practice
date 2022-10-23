@@ -17,12 +17,35 @@ const Query = {
   async posts(parent, args, { prisma }, info) {
     const where = args.query
       ? {
-          OR: [
-            { title: { contains: args.query, mode: "insensitive" } },
-            { body: { contains: args.query, mode: "insensitive" } },
+          AND: [
+            { published: true },
+            {
+              OR: [
+                { title: { contains: args.query, mode: "insensitive" } },
+                { body: { contains: args.query, mode: "insensitive" } },
+              ],
+            },
           ],
         }
-      : {};
+      : { published: true };
+
+    const posts = await prisma.post.findMany({ where });
+    return posts;
+  },
+  async myPosts(parent, args, { currentUser, prisma }, info) {
+    const where = args.query
+      ? {
+          AND: [
+            { userId: currentUser.id },
+            {
+              OR: [
+                { title: { contains: args.query, mode: "insensitive" } },
+                { body: { contains: args.query, mode: "insensitive" } },
+              ],
+            },
+          ],
+        }
+      : { userId: currentUser.id };
 
     const posts = await prisma.post.findMany({ where });
     return posts;

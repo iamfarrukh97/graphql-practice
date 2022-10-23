@@ -146,64 +146,68 @@ const Mutation = {
     }
   },
   async updatePost(parent, args, { currentUser, prisma, db }, info) {
-    const { id, data } = args;
-    const isPostAuthor = await prisma.post.findFirst({
-      where: { id, userId: currentUser.id },
-    });
-    if (!isPostAuthor) {
-      throw new AppError("You are not author of this post");
-    }
-    const originalPost = { ...isPostAuthor }; // isPostAuthor contains the post data
-    const fieldsToUpdate = {};
-    if (typeof data.title === "string") {
-      fieldsToUpdate.title = data.title;
-    }
+    try {
+      const { id, data } = args;
+      const isPostAuthor = await prisma.post.findFirst({
+        where: { id, userId: currentUser.id },
+      });
+      if (!isPostAuthor) {
+        throw new AppError("You are not author of this post");
+      }
+      const originalPost = { ...isPostAuthor }; // isPostAuthor contains the post data
+      const fieldsToUpdate = {};
+      if (typeof data.title === "string") {
+        fieldsToUpdate.title = data.title;
+      }
 
-    if (typeof data.body === "string") {
-      fieldsToUpdate.body = data.body;
-    }
-    if (typeof data.published === "boolean") {
-      fieldsToUpdate.published = data.published;
-    }
-    const post = await prisma.post.update({
-      where: {
-        id: id,
-      },
-      data: fieldsToUpdate,
-    });
+      if (typeof data.body === "string") {
+        fieldsToUpdate.body = data.body;
+      }
+      if (typeof data.published === "boolean") {
+        fieldsToUpdate.published = data.published;
+      }
+      const post = await prisma.post.update({
+        where: {
+          id: id,
+        },
+        data: fieldsToUpdate,
+      });
 
-    if (!post) {
-      throw new AppError("Post not found");
-    }
+      if (!post) {
+        throw new AppError("Post not found");
+      }
 
-    if (typeof data.published === "boolean") {
-      fieldsToUpdate.published = data.published;
+      if (typeof data.published === "boolean") {
+        fieldsToUpdate.published = data.published;
 
-      if (fieldsToUpdate.published && !post.published) {
+        if (fieldsToUpdate.published && !post.published) {
+          pubsub.publish("post", {
+            post: {
+              mutation: "DELETED",
+              data: originalPost,
+            },
+          });
+        } else if (!originalPost.published && post.published) {
+          pubsub.publish("post", {
+            post: {
+              mutation: "CREATED",
+              data: post,
+            },
+          });
+        }
+      } else if (post.published) {
         pubsub.publish("post", {
           post: {
-            mutation: "DELETED",
-            data: originalPost,
-          },
-        });
-      } else if (!originalPost.published && post.published) {
-        pubsub.publish("post", {
-          post: {
-            mutation: "CREATED",
+            mutation: "UPDATED",
             data: post,
           },
         });
       }
-    } else if (post.published) {
-      pubsub.publish("post", {
-        post: {
-          mutation: "UPDATED",
-          data: post,
-        },
-      });
-    }
 
-    return post;
+      return post;
+    } catch (error) {
+      throw new AppError(error.message);
+    }
   },
   async createComment(parent, args, { currentUser, prisma, pubsub }, info) {
     const postExists = await prisma.post.findFirst({

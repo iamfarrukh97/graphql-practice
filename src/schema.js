@@ -1,8 +1,9 @@
 import gql from "graphql-tag";
 const typeDefinitions = gql`
   type Query {
-    users(query: String): [User!]!
-    posts(query: String): [Post!]!
+    users(query: String): [User]!
+    posts(query: String): [Post]!
+    myPosts(query: String): [Post]!
     comments: [Comment!]!
     me: User!
     post: Post!
